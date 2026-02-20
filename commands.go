@@ -80,3 +80,30 @@ func handlerRegister(s *state, cmd command) error {
 	fmt.Printf("User created successfully: %v\n", user)
 	return nil
 }
+
+func handlerReset(s *state, cmd command) error {
+	err := s.db.ResetUsers(context.Background())
+	if err != nil {
+		return fmt.Errorf("could not reset users: %w", err)
+	}
+
+	fmt.Println("All users have been deleted.")
+	return nil
+}
+
+func handlerUsers(s *state, cmd command) error {
+	users, err := s.db.GetUsers(context.Background())
+	if err != nil {
+		return fmt.Errorf("could not get users: %w", err)
+	}
+
+	for _, user := range users {
+		suffix := ""
+		if user.Name == s.cfg.Username {
+			suffix = " (current)"
+		}
+		fmt.Printf("* %s%s\n", user.Name, suffix)
+	}
+	return nil
+}
+	
