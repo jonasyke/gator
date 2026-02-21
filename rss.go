@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/xml"
 	"fmt"
+	"html"
+	"io"
 	"net/http"
 )
 
@@ -29,16 +31,35 @@ func FetchFeed(ctx context.Context, feedURL string) (*RSSFeed, error) {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	req.Header.Set("User-Agent", "gator")
+
+	res, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch feed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	var feed RSSFeed
-	if err := xml.NewDecoder(resp.Body).Decode(&feed); err != nil {
-		return nil, fmt.Errorf("failed to decode feed: %w", err)
+		return nil, err
 	}
 
-	return &feed, nil
+	defer res.Body.Close()
+
+	data, err := io.ReadAll((res.Body))
+	if err != nil {
+		return nil, err
+	}
+	
+	var rssFeed RSSFeed
+
+	err = xml.Unmarshal(data, &rssFeed); if err != nil {
+		return nil, err
+	}
+
+	for i := range rssFeed.Channel.Items {
+		rssFeed.Channel.Items[i].Title = html.UnescapeString(rssFeed.Channel.Items[i].Title)
+		rssFeed.Channel.Items[i].Description = html.UnescapeString(rssFeed.Channel.Items[i].Description)
+	}
+	rssFeed.Channel.Title = html.UnescapeString(rssFeed.Channel.Title)
+	rssFeed.Channel.Description = html.UnescapeString(rssFeed.Channel.Description)
+
+	return &rssFeed, nil
+	
 }
+
+

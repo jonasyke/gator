@@ -79,3 +79,19 @@ func handlerUsers(s *state, cmd command) error {
 	}
 	return nil
 }
+
+func handlerAgg(s *state, cmd command) error {
+	if len(cmd.args) != 0 {
+		return fmt.Errorf("usage: %s", cmd.name)
+	}
+
+	url := "https://www.wagslane.dev/index.xml"
+
+	feed, err := FetchFeed(context.Background(), url)
+	if err != nil {
+		return fmt.Errorf("Could not fetch feed: %w", err)
+	}
+
+	fmt.Printf("%+v\n", feed)
+	return nil
+}
