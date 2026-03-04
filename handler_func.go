@@ -119,3 +119,20 @@ func handlerAddFeed(s *state, cmd command) error {
 	return nil
 }
 
+func handlerFeeds(s *state, cmd command) error {
+	if len(cmd.args) != 0 {
+		return fmt.Errorf("%s command takes no arguments", cmd.name)
+	}
+
+	allFeeds, err := s.db.GetFeeds(context.Background())
+	if err != nil {
+		return fmt.Errorf("unable to retrieve feeds: %s", err)
+	}
+	
+	for _, feed := range allFeeds {
+		fmt.Printf("* Name: %s\n", feed.FeedName)
+		fmt.Printf("  URL: %s\n", feed.Url)
+		fmt.Printf("  UserName: %s\n", feed.UserName)
+	}
+	return nil
+}
