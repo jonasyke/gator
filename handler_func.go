@@ -96,26 +96,23 @@ func handlerAgg(s *state, cmd command) error {
 	return nil
 }
 
-func handlerAddFeed(s *state, cmd command) error {
+func handlerAddFeed(s *state, cmd command, currentUser database.User) error {
 	if len(cmd.args) != 2 {
 		return fmt.Errorf("usage: %s <name> <url>", cmd.name)
 	}
-	target_user, err := s.db.GetUser(context.Background(), s.cfg.Username)
-	if err != nil {
-		return fmt.Errorf("couldnt get user: %w", err)
-	}
+
 	newFeed, err := s.db.CreateFeed(context.Background(), database.CreateFeedParams{
 		ID:        uuid.New(),
 		CreatedAt: time.Now().UTC(),
 		UpdatedAt: time.Now().UTC(),
 		Name:      cmd.args[0],
 		Url:       cmd.args[1],
-		UserID:    target_user.ID,
+		UserID:    currentUser.ID,
 	})
 	if err != nil {
 		return fmt.Errorf("could not create new feed: %w", err)
 	}
-	follow, err := createFeedFollow(context.Background(), s.db, target_user.ID, newFeed.ID)
+	follow, err := createFeedFollow(context.Background(), s.db, currentUser.ID, newFeed.ID)
 	if err != nil {
 		return fmt.Errorf("could not create new follow: %w", err)
 	}
@@ -144,13 +141,9 @@ func handlerFeeds(s *state, cmd command) error {
 	return nil
 }
 
-func handlerFollow(s *state, cmd command) error {
+func handlerFollow(s *state, cmd command, currentUser database.User) error {
 	if len(cmd.args) != 1 {
 		return fmt.Errorf("%s only takes a URL", cmd.name)
-	}
-	current_user, err := s.db.GetUser(context.Background(), s.cfg.Username)
-	if err != nil {
-		return fmt.Errorf("could not fetch current user: %w", err)
 	}
 
 	url := cmd.args[0]
@@ -160,7 +153,7 @@ func handlerFollow(s *state, cmd command) error {
 		return fmt.Errorf("could not find feed with url: %s: %w", url, err)
 	}
 
-	new_follow, err := createFeedFollow(context.Background(), s.db, current_user.ID, feed.ID)
+	new_follow, err := createFeedFollow(context.Background(), s.db, currentUser.ID, feed.ID)
 
 	if err != nil {
 		return fmt.Errorf("could not generate follow: %w", err)
@@ -171,16 +164,12 @@ func handlerFollow(s *state, cmd command) error {
 
 }
 
-func handlerFollowing(s *state, cmd command) error {
+func handlerFollowing(s *state, cmd command, currentUser database.User) error {
 	if len(cmd.args) != 0 {
 		return fmt.Errorf("%s does not take and argument", cmd.name)
 	}
-	user, err := s.db.GetUser(context.Background(), s.cfg.Username)
-	if err != nil {
-		return fmt.Errorf("could not retrieve current user: %w", err)
-	}
 
-	feeds, err := s.db.GetFeedFollowsByUser(context.Background(), user.ID)
+	feeds, err := s.db.GetFeedFollowsByUser(context.Background(), currentUser.ID)
 	if err != nil {
 		return fmt.Errorf("could not retrieve feeds %w", err)
 	}
