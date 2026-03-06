@@ -81,19 +81,24 @@ func handlerUsers(s *state, cmd command) error {
 }
 
 func handlerAgg(s *state, cmd command) error {
-	if len(cmd.args) != 0 {
+	if len(cmd.args) != 1 {
 		return fmt.Errorf("usage: %s", cmd.name)
 	}
 
-	url := "https://www.wagslane.dev/index.xml"
-
-	feed, err := FetchFeed(context.Background(), url)
+	timeBetweenRequests, err := time.ParseDuration(cmd.args[0])
 	if err != nil {
-		return fmt.Errorf("Could not fetch feed: %w", err)
+		return fmt.Errorf("invalid duration: %w", err)
 	}
 
-	fmt.Printf("%+v\n", feed)
-	return nil
+	fmt.Printf("Collecting feeds every %s...\n", timeBetweenRequests)
+
+	ticker := time.NewTicker(timeBetweenRequests)
+	for ; ; <-ticker.C {
+		err := scrapeFeeds(s)
+		if err != nil {
+			fmt.Printf("Error scraping feeds: %v\n", err)
+		}
+	}
 }
 
 func handlerAddFeed(s *state, cmd command, currentUser database.User) error {
@@ -190,7 +195,7 @@ func handlerUnfollow(s *state, cmd command, currentUser database.User) error {
 	if err != nil {
 		return fmt.Errorf("could not retrieve feed: %s :%w", url, err)
 	}
-	
+
 	err = s.db.FeedUnfollow(context.Background(), database.FeedUnfollowParams{
 		UserID: currentUser.ID,
 		FeedID: feed.ID,
@@ -209,4 +214,26 @@ func createFeedFollow(ctx context.Context, db *database.Queries, userID uuid.UUI
 		UserID:    userID,
 		FeedID:    feedID,
 	})
+}
+
+func scrapeFeeds(s *state) error {
+	nextFeed, err := s.db.GetNextFeedToFetch(context.Background())
+	if err != nil {
+		return fmt.Errorf("could not retrieve the next feed: %w", err)
+	}
+
+	markedFeed, err := s.db.MarkFeedFetched(context.Background(), nextFeed.ID)
+	if err != nil {
+		return fmt.Errorf("could not mark feed fetched: %w", err)
+	}
+
+	newFeed, err := FetchFeed(context.Background(), markedFeed.Url)
+	if err != nil {
+		return fmt.Errorf("could not fetch new feed: %w", err)
+	}
+
+	for _, item := range newFeed.Channel.Items {
+		fmt.Printf("* %s\n", item.Title)
+	}
+	return nil
 }
