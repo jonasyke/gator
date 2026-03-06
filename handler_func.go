@@ -180,6 +180,27 @@ func handlerFollowing(s *state, cmd command, currentUser database.User) error {
 	return nil
 }
 
+func handlerUnfollow(s *state, cmd command, currentUser database.User) error {
+	if len(cmd.args) != 1 {
+		return fmt.Errorf("needs the url only")
+	}
+	url := cmd.args[0]
+
+	feed, err := s.db.GetFeedByUrl(context.Background(), url)
+	if err != nil {
+		return fmt.Errorf("could not retrieve feed: %s :%w", url, err)
+	}
+	
+	err = s.db.FeedUnfollow(context.Background(), database.FeedUnfollowParams{
+		UserID: currentUser.ID,
+		FeedID: feed.ID,
+	})
+	if err != nil {
+		return fmt.Errorf("could not perform unfollow: %w", err)
+	}
+	return nil
+}
+
 func createFeedFollow(ctx context.Context, db *database.Queries, userID uuid.UUID, feedID uuid.UUID) (database.CreateFeedFollowRow, error) {
 	return db.CreateFeedFollow(ctx, database.CreateFeedFollowParams{
 		ID:        uuid.New(),
