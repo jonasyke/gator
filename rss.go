@@ -11,10 +11,10 @@ import (
 
 type RSSFeed struct {
 	Channel struct {
-		Title       string `xml:"title"`
-		Link		string `xml:"link"`
-		Description string `xml:"description"`
-		Items	   []RSSItem `xml:"item"`
+		Title       string    `xml:"title"`
+		Link        string    `xml:"link"`
+		Description string    `xml:"description"`
+		Items       []RSSItem `xml:"item"`
 	} `xml:"channel"`
 }
 
@@ -34,8 +34,13 @@ func FetchFeed(ctx context.Context, feedURL string) (*RSSFeed, error) {
 	req.Header.Set("User-Agent", "gator")
 
 	res, err := http.DefaultClient.Do(req)
+
 	if err != nil {
 		return nil, err
+	}
+
+	if res.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code: %d", res.StatusCode)
 	}
 
 	defer res.Body.Close()
@@ -44,10 +49,11 @@ func FetchFeed(ctx context.Context, feedURL string) (*RSSFeed, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var rssFeed RSSFeed
 
-	err = xml.Unmarshal(data, &rssFeed); if err != nil {
+	err = xml.Unmarshal(data, &rssFeed)
+	if err != nil {
 		return nil, err
 	}
 
@@ -59,7 +65,5 @@ func FetchFeed(ctx context.Context, feedURL string) (*RSSFeed, error) {
 	rssFeed.Channel.Description = html.UnescapeString(rssFeed.Channel.Description)
 
 	return &rssFeed, nil
-	
+
 }
-
-

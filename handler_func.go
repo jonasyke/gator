@@ -2,8 +2,13 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
+	"log"
+	"strconv"
+	"strings"
 	"time"
+	"errors"
 
 	"github.com/google/uuid"
 	"github.com/jonasyke/gator/internal/database"
@@ -55,7 +60,7 @@ func handlerRegister(s *state, cmd command) error {
 }
 
 func handlerReset(s *state, cmd command) error {
-	err := s.db.ResetUsers(context.Background())
+	err := s.db.Reset(context.Background())
 	if err != nil {
 		return fmt.Errorf("could not reset users: %w", err)
 	}
@@ -216,6 +221,32 @@ func createFeedFollow(ctx context.Context, db *database.Queries, userID uuid.UUI
 	})
 }
 
+func handlerBrowse(s *state, cmd command) error {
+	limit := 2
+	if len(cmd.args) > 0 {
+		if l, err := strconv.Atoi(cmd.args[0]); err == nil {
+			limit = l
+		}
+	}
+
+	user, err := s.db.GetUser(context.Background(), s.cfg.Username)
+	if err != nil {
+		return fmt.Errorf("Could not fetch user in browse: %w", err)
+	}
+
+	posts, err := s.db.GetPostsForUser(context.Background(), database.GetPostsForUserParams{
+		UserID: user.ID,
+		Limit:  int32(limit),
+	})
+	for _, post := range posts {
+		fmt.Printf("--- %s ---\n", post.Title.String)
+		fmt.Printf("Source: %s\n", post.Url)
+		fmt.Printf("Published: %v\n", post.PublishedAt.Time.Format("Jan 02, 2006"))
+		fmt.Printf("Description: %s\n\n", post.Description.String)
+	}
+	return nil
+}
+
 func scrapeFeeds(s *state) error {
 	nextFeed, err := s.db.GetNextFeedToFetch(context.Background())
 	if err != nil {
@@ -233,7 +264,34 @@ func scrapeFeeds(s *state) error {
 	}
 
 	for _, item := range newFeed.Channel.Items {
-		fmt.Printf("* %s\n", item.Title)
+		pubAt, err := time.Parse(time.RFC1123Z, item.PubDate)
+		if err != nil {
+			log.Printf("couldn't parse date %v: %v", item.PubDate, err)
+			continue
+		}
+		_, err = s.db.CreatePost(context.Background(), database.CreatePostParams{
+			ID:          uuid.New(),
+			CreatedAt:   time.Now().UTC(),
+			UpdatedAt:   time.Now().UTC(),
+			Title:       sql.NullString{String: item.Title, Valid: true},
+			Url:         item.Link,
+			Description: sql.NullString{String: item.Description, Valid: true},
+			PublishedAt: sql.NullTime{Time: pubAt, Valid: true},
+			FeedID:      nextFeed.ID,
+		})
+		if err != nil {
+			if strings.Contains(err.Error(), "duplicate key value violates unique constraint") {
+				continue
+			}
+
+			if errors.Is(err, sql.ErrNoRows) {
+				continue
+			}
+
+			log.Printf("could not create new post: %v", err)
+			continue
+		}
+
 	}
 	return nil
 }

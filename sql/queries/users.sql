@@ -22,5 +22,6 @@ DELETE FROM users;
 SELECT *
 FROM users;
 
-
+-- name: Reset :exec
+DELETE FROM users;
 
